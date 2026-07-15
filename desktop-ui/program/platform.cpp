@@ -44,7 +44,11 @@ auto Program::event(ares::Event event) -> void {
   }
 
   if(event == ares::Event::Shutdown) {
-    quit();
+    // Emulator callbacks can originate outside the main UI thread. Queue the
+    // shutdown so Program::main() performs worker teardown without attempting
+    // to join the emulation worker from a callback thread.
+    _quitRequested = true;
+    return;
   }
 }
 

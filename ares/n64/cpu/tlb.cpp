@@ -22,6 +22,8 @@ auto CPU::TLB::load(u64 vaddr, bool noExceptions) -> PhysAccess {
     if(!entry.entry) continue;
     if(auto match = load(vaddr, *entry.entry, noExceptions)) {
       entry.frequency++;
+      if(unlikely(self.profiler.configured()))
+        self.profiler.tlbAccess(vaddr, false, Profiler::TlbResult::CacheHit);
       return *match;
     }
   }
@@ -29,15 +31,23 @@ auto CPU::TLB::load(u64 vaddr, bool noExceptions) -> PhysAccess {
   for(auto& entry : this->entry) {
     if(auto match = load(vaddr, entry, noExceptions)) {
       this->tlbCache.insert(entry);
+      if(unlikely(self.profiler.configured()))
+        self.profiler.tlbAccess(vaddr, false, Profiler::TlbResult::CacheMiss);
       return *match;
     }
   }
 
-  if(noExceptions)return {false};
+  if(noExceptions) {
+    if(unlikely(self.profiler.configured()))
+      self.profiler.tlbAccess(vaddr, false, Profiler::TlbResult::Missing);
+    return {false};
+  }
 
   self.addressException(vaddr);
   self.debugger.tlbLoadMiss(vaddr);
   self.exception.tlbLoadMiss();
+  if(unlikely(self.profiler.configured()))
+    self.profiler.tlbAccess(vaddr, false, Profiler::TlbResult::Missing);
   return {false};
 }
 
@@ -72,6 +82,8 @@ auto CPU::TLB::store(u64 vaddr, bool noExceptions) -> PhysAccess {
     if(!entry.entry) continue;
     if(auto match = store(vaddr, *entry.entry)) {
       entry.frequency++;
+      if(unlikely(self.profiler.configured()))
+        self.profiler.tlbAccess(vaddr, true, Profiler::TlbResult::CacheHit);
       return *match;
     }
   }
@@ -79,6 +91,8 @@ auto CPU::TLB::store(u64 vaddr, bool noExceptions) -> PhysAccess {
   for(auto& entry : this->entry) {
     if(auto match = store(vaddr, entry, noExceptions)) {
       this->tlbCache.insert(entry);
+      if(unlikely(self.profiler.configured()))
+        self.profiler.tlbAccess(vaddr, true, Profiler::TlbResult::CacheMiss);
       return *match;
     }
   }
@@ -88,6 +102,8 @@ auto CPU::TLB::store(u64 vaddr, bool noExceptions) -> PhysAccess {
     self.debugger.tlbStoreMiss(vaddr);
     self.exception.tlbStoreMiss();
   }
+  if(unlikely(self.profiler.configured()))
+    self.profiler.tlbAccess(vaddr, true, Profiler::TlbResult::Missing);
   return {false};
 }
 

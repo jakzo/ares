@@ -23,6 +23,7 @@ CPU cpu;
 #include "serialization.cpp"
 #include "disassembler.cpp"
 #include "emux.cpp"
+#include "profiler.cpp"
 
 auto CPU::load(Node::Object parent) -> void {
   node = parent->append<Node::Object>("CPU");
@@ -30,6 +31,7 @@ auto CPU::load(Node::Object parent) -> void {
 }
 
 auto CPU::unload() -> void {
+  profiler.unload();
   debugger.unload();
   node.reset();
 }
@@ -39,6 +41,7 @@ auto CPU::main() -> void {
     if(instruction()) synchronize();
   }
 
+  if(vi.refreshed && unlikely(profiler.configured())) profiler.frame();
   vi.refreshed = false;
   queue.remove(Queue::GDB_Poll);
   if(GDB::server.hasClient()) {
@@ -173,6 +176,7 @@ auto CPU::instruction() -> bool {
 }
 
 auto CPU::instructionPrologue(u64 address, u32 instruction) -> void {
+  if(unlikely(profiler.configured())) profiler.instruction(address, instruction);
   debugger.instruction(address, instruction);
 }
 
@@ -189,6 +193,7 @@ auto CPU::raiseCoprocessor1Exception() -> void {
 
 auto CPU::power(bool reset) -> void {
   Thread::reset();
+  profiler.power(reset);
 
   context.endian = Context::Endian::Big;
   context.mode = Context::Mode::Kernel;
@@ -215,6 +220,7 @@ auto CPU::power(bool reset) -> void {
     auto buffer = ares::Memory::FixedAllocator::get().tryAcquire(63_MiB);
     recompiler.allocator.resize(63_MiB, bump_allocator::executable, buffer);
     recompiler.reset();
+    recompiler.callInstructionPrologue = profiler.configured();
   }
 }
 

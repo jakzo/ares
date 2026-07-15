@@ -43,6 +43,7 @@ ares_add_sources(
   INCLUDED #
     n64.hpp
     accuracy.hpp
+    PROFILER.md
     CMakeLists.txt
 )
 
@@ -156,6 +157,7 @@ ares_add_sources(
     cpu/interpreter-scc.cpp
     cpu/interpreter.cpp
     cpu/memory.cpp
+    cpu/profiler.cpp
     cpu/recompiler.cpp
     cpu/recompiler-fpu.cpp
     cpu/recompiler-ipu.cpp

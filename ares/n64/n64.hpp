@@ -4,6 +4,10 @@
 #define XXH_INLINE_ALL
 #include <xxhash.h>
 #include <float.h>
+#include <algorithm>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <ares/ares.hpp>
 #include <nall/float-env.hpp>
 #include <nall/hashset.hpp>
@@ -11,7 +15,15 @@
 #include <nall/recompiler/generic/generic.hpp>
 #include <component/processor/sm5k/sm5k.hpp>
 #include <functional>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <map>
+#include <sstream>
 #include <span>
+#include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #if defined(ARCHITECTURE_AMD64)

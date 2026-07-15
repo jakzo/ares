@@ -227,7 +227,7 @@ struct CPU : Thread {
     auto line(u64 vaddr) -> Line&;
     template<u32 Size> auto read(u64 vaddr, u32 paddr) -> u64;
     template<u32 Size> auto write(u64 vaddr, u32 paddr, u64 data) -> void;
-    auto power(bool reset) -> void;
+    auto power(bool) -> void;
 
     template<u32 Size> auto readDebug(u64 vaddr, u32 paddr) -> u64;
     template<u32 Size> auto writeDebug(u64 vaddr, u32 paddr, u64 value) -> void;
@@ -1282,6 +1282,132 @@ struct CPU : Thread {
   };
 
   std::vector<ProfileSlot> profileSlots;
+
+  //cpu/profiler.cpp: opt-in guest profiler used by the GoldenEye practice ROM.
+  struct Profiler {
+    Profiler(CPU& self) : self(self) {}
+
+    enum class TlbResult : u32 { CacheHit, CacheMiss, Missing };
+
+    struct Function {
+      u32 address = 0;
+      u32 size = 0;
+      std::string name;
+      u64 calls = 0;
+      u64 selfCycles = 0;
+      u64 inclusiveCycles = 0;
+    };
+
+    struct StackFrame {
+      size_t function = 0;
+      u32 returnAddress = 0;
+      u32 stackPointer = 0;
+      u64 startCycle = 0;
+    };
+
+    struct Page {
+      u64 accesses = 0;
+      u64 loads = 0;
+      u64 stores = 0;
+      u64 cacheHits = 0;
+      u64 cacheMisses = 0;
+      u64 missing = 0;
+    };
+
+    struct Frame {
+      u64 startCycle = 0;
+      u64 endCycle = 0;
+    };
+
+    struct GameFrame {
+      u64 startCycle = 0;
+      u64 endCycle = 0;
+      u64 tlbLoads = 0;
+    };
+
+    auto power(bool reset) -> void;
+    auto unload() -> void;
+    auto instruction(u64 address, u32 instruction) -> void;
+    auto frame() -> void;
+    auto tlbAccess(u64 address, bool store, TlbResult result) -> void;
+    auto configured() const -> bool { return isConfigured; }
+
+  private:
+    static constexpr size_t NoFunction = ~size_t{0};
+    static constexpr u32 GoldenEyeTitleStage = 90;
+
+    auto loadSymbols(const std::string& path) -> bool;
+    auto functionAt(u32 address) -> size_t;
+    auto functionStartingAt(u32 address) const -> size_t;
+    auto cycles() const -> u64;
+    auto beginCapture(u32 stage, u64 now) -> void;
+    auto endCapture(u64 now, bool requestShutdown = false) -> void;
+    auto checkTimeout(u64 now) -> bool;
+    auto requestShutdown() -> void;
+    auto resetCapture() -> void;
+    auto attributeUntil(u64 now) -> void;
+    auto flushFolded() -> void;
+    auto updateFoldedKey() -> void;
+    auto pushFunction(size_t function, u32 returnAddress, u64 now) -> void;
+    auto popFunction(u64 now) -> void;
+    auto writeCapture() -> void;
+    auto capturePath(const char* suffix) const -> std::filesystem::path;
+    static auto csv(const std::string& value) -> std::string;
+
+    CPU& self;
+    bool isConfigured = false;
+    bool active = false;
+    bool pendingLevelStart = false;
+    bool pendingCall = false;
+    bool shutdownRequested = false;
+    bool replayActive = false;
+    bool replayRequested = false;
+    bool gameFrameActive = false;
+    u32 pendingLevelStage = 0;
+    u32 pendingLevelReturn = 0;
+    u32 pendingCallDelay = 0;
+    u32 pendingCallTarget = 0;
+    u32 pendingCallReturn = 0;
+    u32 pendingReplayStartReturn = 0;
+    u32 captureSequence = 0;
+    u32 captureStage = 0;
+    size_t stageLoadFunction = NoFunction;
+    size_t stageUnloadFunction = NoFunction;
+    size_t replayStageLoadFunction = NoFunction;
+    size_t replayStopFunction = NoFunction;
+    size_t masterDisplayListFunction = NoFunction;
+    size_t debugMenuDrawFunction = NoFunction;
+    size_t softwareTlbLoadFunction = NoFunction;
+    size_t lastFunction = NoFunction;
+    u64 captureStartCycle = 0;
+    u64 captureEndCycle = 0;
+    u64 lastCycle = 0;
+    u64 frameStartCycle = 0;
+    u64 foldedPendingCycles = 0;
+    u64 tlbCacheHits = 0;
+    u64 tlbCacheMisses = 0;
+    u64 tlbMissing = 0;
+    u64 gameFrameStartCycle = 0;
+    u64 gameFrameTlbLoads = 0;
+    std::chrono::steady_clock::time_point configuredAt;
+    std::chrono::steady_clock::time_point captureStartedAt;
+    std::string symbolsPath;
+    std::filesystem::path outputPrefix;
+    std::string foldedKey;
+    std::vector<Function> functions;
+    std::unordered_map<u32, size_t> functionStarts;
+    static constexpr size_t FunctionCacheSize = 1 << 16;
+    struct FunctionCacheEntry {
+      u32 address = 0;
+      u32 function = ~u32{0};
+    };
+    std::vector<FunctionCacheEntry> functionCache;
+    std::vector<StackFrame> stack;
+    std::map<u32, Page> pages;
+    std::vector<Frame> frames;
+    std::vector<GameFrame> gameFrames;
+    std::map<std::string, u64> folded;
+  } profiler{*this};
 
   struct EmuxState {
     n64 excMask;

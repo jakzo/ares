@@ -5,7 +5,8 @@ auto CPU::Debugger::load(Node::Object parent) -> void {
   if constexpr(Accuracy::CPU::Recompiler) {
     tracer.instruction->setToggle([&] {
       cpu.recompiler.reset();
-      cpu.recompiler.callInstructionPrologue = tracer.instruction->enabled();
+      cpu.recompiler.callInstructionPrologue =
+        tracer.instruction->enabled() || cpu.profiler.configured();
     });
   }
 
